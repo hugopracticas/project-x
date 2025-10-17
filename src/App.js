@@ -1,24 +1,46 @@
-import logo from './logo.svg';
-import './App.css';
+import { useEffect, useState } from "react";
+import axios from "axios";
+import "./styles.css";
 
-function App() {
+export default function App() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [airports, setAirports] = useState();
+
+  const fetchCountries = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get("https://airportgap.com/api/airports");
+      setAirports(response.data.data || []);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching countries:", err);
+      setError("Hubo un error al obtener los datos.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCountries();
+  }, []);
+
+  if (loading) return <p aria-label="loading">Cargando aeropuertos...</p>;
+  if (error) return <p style={{ color: "red" }}>{error}</p>;
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-        </a>
-      </header>
+      <h1>Lista de aeropuertos</h1>
+      {airports.length === 0 ? (
+        <h1 data-testid="empty">No se encontraron aeropuertos</h1>
+      ) : null}
+      <div>
+        {airports.map((airport) => (
+          <div key={airport.id} data-testid="airport-item">
+            <h3>{airport.id}</h3>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
-
-export default App;
