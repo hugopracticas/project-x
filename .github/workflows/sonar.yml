@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: CI=true npm test -- --coverage --watchAll=false
+      - run: npm run test:ci
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
         env:
