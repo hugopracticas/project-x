@@ -16,7 +16,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test:cov": "CI=true react-scripts test --coverage --watchAll=false",
+    "sonar": "sonar-scanner",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

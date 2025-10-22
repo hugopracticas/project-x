@@ -1,0 +1,35 @@
+name: CI + SonarQube
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test-sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      # tests + coverage
+      - run: CI=true npm test -- --coverage --watchAll=false
+
+      # escaneo SonarQube (self-hosted) o SonarCloud (cambia la URL):
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # ej. http://YOUR_SONAR_SERVER:9000
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # (Opcional) Falla el job si no pasa el Quality Gate
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
