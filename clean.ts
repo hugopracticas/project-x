@@ -48,6 +48,14 @@ function greeColor(text: string) { // Mantenido el nombre de la foto (greeColor)
   return `\x1b[32m${text}\x1b[0m`;
 }
 
+// Confirmación interactiva con el usuario
+async function confirmWithY(message = "Continue? [y/N]: "): Promise<boolean> {
+  const rl = readline.createInterface({ input, output });
+  const answer = await rl.question(message);
+  rl.close();
+  return answer.trim().toLowerCase() === 'y';
+}
+
 // Ejecuta un comando de borrado seguro
 async function deleteFiles(filesToDelete: string[]): Promise<void> {
   for (const file of filesToDelete) {
@@ -59,112 +67,104 @@ async function deleteFiles(filesToDelete: string[]): Promise<void> {
   }
 }
 
-// Confirmación interactiva con el usuario
-async function confirmWithY(message = "Continue? [y/N]: "): Promise<boolean> {
-  const rl = readline.createInterface({ input, output });
-  const answer = await rl.question(message);
-  rl.close();
-  return answer.trim().toLowerCase() === 'y';
-}
-
 /**Temporal funcion runBashOverDoubleSsh*/
-// function runBashOverDoubleSsh(
-//   jumpHost: string,
-//   targetHost: string,
-//   bashScript: string
-// ): Promise<CommandResult> {
-//   return new Promise(async (resolve) => {
-//     try {
-//       // Ejecuta el script de Bash directamente en tu Ubuntu local usando /bin/bash
-//       const { stdout, stderr } = await execAsync(bashScript, { shell: '/bin/bash' });
-//       resolve({
-//         exitCode: 0,
-//         stdout,
-//         stderr
-//       });
-//     } catch (error: any) {
-//       resolve({
-//         exitCode: error.code ?? 1,
-//         stdout: error.stdout ?? "",
-//         stderr: error.stderr ?? error.message
-//       });
-//     }
-//   });
-// }
-
-//Conexión Local -> Jump Host -> Compute Node mediante Doble SSH con reintentos
 function runBashOverDoubleSsh(
   jumpHost: string,
   targetHost: string,
   bashScript: string
 ): Promise<CommandResult> {
-  const maxRetries = 5;
-  const retryDelayMs = 3000;
-
-  const execute = (retryCount: number): Promise<CommandResult> => {
-    return new Promise((resolve, reject) => {
-      const child = spawn("ssh", [
-        "-A",
-        jumpHost,
-        "ssh",
-        targetHost,
-        "bash -s"
-      ], {
-        stdio: ["pipe", "pipe", "pipe"]
+  return new Promise(async (resolve) => {
+    try {
+      // Ejecuta el script de Bash directamente en tu Ubuntu local usando /bin/bash
+      const { stdout, stderr } = await execAsync(bashScript, { shell: '/bin/bash' });
+      resolve({
+        exitCode: 0,
+        stdout,
+        stderr
       });
-
-      let stdout = "";
-      let stderr = "";
-
-      child.stdout.on("data", (data: any) => {
-        stdout += data.toString();
+    } catch (error: any) {
+      resolve({
+        exitCode: error.code ?? 1,
+        stdout: error.stdout ?? "",
+        stderr: error.stderr ?? error.message
       });
-
-      child.stderr.on("data", (data: any) => {
-        stderr += data.toString();
-      });
-
-      child.on("error", (error: any) => {
-        reject(error);
-      });
-
-      child.on("close", (code: any) => {
-        const normalizedStderr = stderr
-          .replace(/\r\n/g, "\n")
-          .trim();
-
-        const retryableError =
-          /kex_exchange_identification: read: Connection reset by peer|\nConnection reset by \S+ port 2222/;// Ajustado expresión regular del control
-
-        const shouldRetry = retryableError.test(normalizedStderr) && retryCount < maxRetries;
-
-        if (shouldRetry) {
-          console.warn(
-            `La conexión SSH fue reiniciada por el servidor. Reintento ${retryCount + 1} de ${maxRetries} en ${retryDelayMs} ms...`
-          );
-          setTimeout(() => {
-            execute(retryCount + 1)
-              .then(resolve)
-              .catch(reject);
-          }, retryDelayMs);
-          return;
-        }
-
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr
-        });
-      });
-
-      // Escribe el script Bash en la entrada estándar del proceso SSH
-      child.stdin.write(bashScript);
-      child.stdin.end();
-    });
-  };
-
-  return execute(0);
+    }
+  });
 }
+
+//Conexión Local -> Jump Host -> Compute Node mediante Doble SSH con reintentos
+// function runBashOverDoubleSsh(
+//   jumpHost: string,
+//   targetHost: string,
+//   bashScript: string
+// ): Promise<CommandResult> {
+//   const maxRetries = 5;
+//   const retryDelayMs = 3000;
+
+//   const execute = (retryCount: number): Promise<CommandResult> => {
+//     return new Promise((resolve, reject) => {
+//       const child = spawn("ssh", [
+//         "-A",
+//         jumpHost,
+//         "ssh",
+//         targetHost,
+//         "bash -s"
+//       ], {
+//         stdio: ["pipe", "pipe", "pipe"]
+//       });
+
+//       let stdout = "";
+//       let stderr = "";
+
+//       child.stdout.on("data", (data: any) => {
+//         stdout += data.toString();
+//       });
+
+//       child.stderr.on("data", (data: any) => {
+//         stderr += data.toString();
+//       });
+
+//       child.on("error", (error: any) => {
+//         reject(error);
+//       });
+
+//       child.on("close", (code: any) => {
+//         const normalizedStderr = stderr
+//           .replace(/\r\n/g, "\n")
+//           .trim();
+
+//         const retryableError =
+//           /kex_exchange_identification: read: Connection reset by peer|\nConnection reset by \S+ port 2222/;// Ajustado expresión regular del control
+
+//         const shouldRetry = retryableError.test(normalizedStderr) && retryCount < maxRetries;
+
+//         if (shouldRetry) {
+//           console.warn(
+//             `La conexión SSH fue reiniciada por el servidor. Reintento ${retryCount + 1} de ${maxRetries} en ${retryDelayMs} ms...`
+//           );
+//           setTimeout(() => {
+//             execute(retryCount + 1)
+//               .then(resolve)
+//               .catch(reject);
+//           }, retryDelayMs);
+//           return;
+//         }
+
+//         resolve({
+//           exitCode: code ?? 1,
+//           stdout,
+//           stderr
+//         });
+//       });
+
+//       // Escribe el script Bash en la entrada estándar del proceso SSH
+//       child.stdin.write(bashScript);
+//       child.stdin.end();
+//     });
+//   };
+
+//   return execute(0);
+// }
 
 // Función principal
 async function main() {
@@ -251,9 +251,37 @@ async function main() {
     } else {
       let backups = outputText.split("\n");
 
+      // if (backups.length === 6) {
+      //   console.log(`${bdName} has 3 successful backups in ${greeColor(NEW_BACKUP_DEVICE)} volume`);
+      //   console.log(greeColor(outputText));
+      // }
+
+      //else {
       if (backups.length === 6) {
         console.log(`${bdName} has 3 successful backups in ${greeColor(NEW_BACKUP_DEVICE)} volume`);
         console.log(greeColor(outputText));
+
+        // Lanzamos la confirmación al usuario
+        const procederBorrado = await confirmWithY(`¿La validación de las 6 capas fue exitosa. Deseas proceder a borrar los archivos backup.successful? [y/N]: `);
+
+        if (procederBorrado) {
+          // Construimos las rutas absolutas exactas de los archivos que queremos eliminar
+          const archivosABorrar = [
+            `${path_for_new_vol}/${bdName}/5432/base/backup.successful`,
+            `${path_for_new_vol}/${bdName}/5432.latest/base/backup.successful`,
+            `${path_for_new_vol}/${bdName}/5432.latest_2/base/backup.successful`
+          ];
+
+          console.log(greeColor("\nIniciando el proceso de borrado seguro..."));
+
+          // Invocamos la función independiente que agregamos antes
+          await deleteFiles(archivosABorrar);
+
+          console.log(greeColor("Los archivos de bandera 'backup.successful' han sido eliminados correctamente.\n"));
+        } else {
+          console.log("Borrado cancelado por el usuario.");
+        }
+
       } else {
         console.log(`${redColor(bdName)} doesn't have all required backups (Found ${backups.length} of 6 files) in ${NEW_BACKUP_DEVICE} volume:`);
         console.log(redColor(outputText));
