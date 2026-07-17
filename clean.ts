@@ -48,6 +48,17 @@ function greeColor(text: string) { // Mantenido el nombre de la foto (greeColor)
   return `\x1b[32m${text}\x1b[0m`;
 }
 
+// Ejecuta un comando de borrado seguro
+async function deleteFiles(filesToDelete: string[]): Promise<void> {
+  for (const file of filesToDelete) {
+    console.log(redColor(`Borrando archivo: ${file}`));
+    // Construimos el script de borrado
+    const deleteScript = `rm -f "${file}"`;
+    // Reutilizamos tu función de ejecución remota
+    await runBashOverDoubleSsh(JUMP_HOST, TARGET_HOST, deleteScript);
+  }
+}
+
 // Confirmación interactiva con el usuario
 async function confirmWithY(message = "Continue? [y/N]: "): Promise<boolean> {
   const rl = readline.createInterface({ input, output });
