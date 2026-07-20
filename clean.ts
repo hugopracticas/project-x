@@ -6,7 +6,7 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { exec } from "child_process";
 import { promisify } from "util";
-
+import path from "path";
 
 const execAsync = promisify(exec);
 
@@ -56,13 +56,12 @@ async function confirmWithY(message = "Continue? [y/N]: "): Promise<boolean> {
   return answer.trim().toLowerCase() === 'y';
 }
 
-// Ejecuta un comando de borrado seguro
+// Ejecuta un comando de borrado recursivo seguro para carpetas o archivos
 async function deleteFiles(filesToDelete: string[]): Promise<void> {
   for (const file of filesToDelete) {
-    console.log(redColor(`Borrando archivo: ${file}`));
-    // Construimos el script de borrado
-    const deleteScript = `rm -f "${file}"`;
-    // Reutilizamos tu función de ejecución remota
+    console.log(redColor(`Borrando permanentemente: ${file}`));
+    // Cambiado a rm -rf para eliminar carpetas completas y su contenido
+    const deleteScript = `rm -rf "${file}"`;
     await runBashOverDoubleSsh(JUMP_HOST, TARGET_HOST, deleteScript);
   }
 }
@@ -190,7 +189,6 @@ async function main() {
   let mountVolumesResult = await runBashOverDoubleSsh(JUMP_HOST, TARGET_HOST, mountVolumesScript);
 
   if (mountVolumesResult.stderr.trim()) {
-    //console.log("Volumenes no pudieron ser montados");
     console.log("Volumenes no pudieron ser montados. Razón:");
     console.error(mountVolumesResult.stderr.trim());
   }
@@ -254,30 +252,69 @@ async function main() {
       // if (backups.length === 6) {
       //   console.log(`${bdName} has 3 successful backups in ${greeColor(NEW_BACKUP_DEVICE)} volume`);
       //   console.log(greeColor(outputText));
-      // }
 
-      //else {
+      //   // Calculamos la ruta raíz de esta base de datos específica
+      //   //const carpetaPrincipalBD = `${path_for_new_vol}/${bdName}`;
+      //   const carpetaPrincipalBD = path.resolve(`${path_for_new_vol}/${bdName}`);
+
+      //   // Lanzamos la confirmación al usuario mostrando la ruta exacta a eliminar
+      //   const procederBorrado = await confirmWithY(`¿La validación fue exitosa. Deseas proceder a borrar COMPLETAMENTE la carpeta ${carpetaPrincipalBD}? [y/N]: `);
+
+      //   if (procederBorrado) {
+      //     console.log(greeColor("\nIniciando el proceso de borrado completo..."));
+
+      //     // Enviamos la carpeta principal en el arreglo
+      //     await deleteFiles([carpetaPrincipalBD]);
+
+      //     console.log(greeColor(`La carpeta ${carpetaPrincipalBD} y todo su contenido han sido eliminados.\n`));
+      //   } else {
+      //     console.log("Borrado cancelado por el usuario.");
+      //   }
+
+      // } 
       if (backups.length === 6) {
         console.log(`${bdName} has 3 successful backups in ${greeColor(NEW_BACKUP_DEVICE)} volume`);
         console.log(greeColor(outputText));
 
-        // Lanzamos la confirmación al usuario
-        const procederBorrado = await confirmWithY(`¿La validación de las 6 capas fue exitosa. Deseas proceder a borrar los archivos backup.successful? [y/N]: `);
+        // Mantenemos la construcción simple de la ruta
+        const carpetaPrincipalBD = `${path_for_new_vol}/${bdName}`;
+
+        const procederBorrado = await confirmWithY(`¿La validación fue exitosa. Deseas proceder a borrar COMPLETAMENTE la carpeta ${carpetaPrincipalBD}? [y/N]: `);
 
         if (procederBorrado) {
-          // Construimos las rutas absolutas exactas de los archivos que queremos eliminar
-          const archivosABorrar = [
-            `${path_for_new_vol}/${bdName}/5432/base/backup.successful`,
-            `${path_for_new_vol}/${bdName}/5432.latest/base/backup.successful`,
-            `${path_for_new_vol}/${bdName}/5432.latest_2/base/backup.successful`
-          ];
+          console.log(greeColor("\nIniciando el proceso de borrado completo en el destino..."));
 
-          console.log(greeColor("\nIniciando el proceso de borrado seguro..."));
+          const scriptBorradoSeguro = `
+            set -euo pipefail
+            
+            # 1. Obtener la ruta absoluta real
+            REAL_PATH=\$(readlink -f "${carpetaPrincipalBD}")
+            VOL_PATH=\$(readlink -f "${path_for_new_vol}")
+            
+            # 2. PROTECCIÓN CRÍTICA: Jamás permitir borrar la raíz del sistema
+            if [ -z "\$REAL_PATH" ] || [ "\$REAL_PATH" == "/" ]; then
+              echo "ERROR DE SEGURIDAD: Intento de borrado de una ruta raíz inválida: \$REAL_PATH" >&2
+              exit 1
+            fi
+            
+            # 3. Caso especial para pruebas locales con (.)
+            if [ "\$REAL_PATH" == "\$VOL_PATH" ]; then
+              echo "Vaciando contenido del volumen raíz local de pruebas: \$REAL_PATH"
+              rm -rf "\$REAL_PATH"/* "\$REAL_PATH"/.* 2>/dev/null || true
+            else
+              # Comportamiento normal en producción
+              echo "Borrando carpeta de base de datos en el servidor: \$REAL_PATH"
+              rm -rf "\$REAL_PATH"
+            fi
+          `;
 
-          // Invocamos la función independiente que agregamos antes
-          await deleteFiles(archivosABorrar);
+          const resultadoBorrado = await runBashOverDoubleSsh(JUMP_HOST, TARGET_HOST, scriptBorradoSeguro);
 
-          console.log(greeColor("Los archivos de bandera 'backup.successful' han sido eliminados correctamente.\n"));
+          if (resultadoBorrado.stderr.trim()) {
+            console.error(redColor(`\nError durante el borrado: ${resultadoBorrado.stderr.trim()}`));
+          } else {
+            console.log(greeColor(`\nLa carpeta ${carpetaPrincipalBD} ha sido eliminada con éxito en el entorno de destino.\n`));
+          }
         } else {
           console.log("Borrado cancelado por el usuario.");
         }
