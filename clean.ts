@@ -338,3 +338,57 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+/*******/
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Definimos la interfaz si manejas objetos de DB en el script
+interface DatabaseItem {
+  fullName: string; // ej: "den-dev-db-monkeylearnmain"
+  shortName: string; // ej: "monkeylearnmain"
+}
+
+function generateNotificationMessages(databases: DatabaseItem[]): void {
+  // Extractores para formatear los bloques de texto
+  const fullNamesList = databases.map(db => db.fullName).join('\n');
+  const shortNamesList = databases.map(db => db.shortName).join('\n');
+  
+  const pauseAlertsList = databases
+    .map(db => `!pausealerts ${db.shortName} express 1h`)
+    .join('\n');
+    
+  const resumeAlertsList = databases
+    .map(db => `!resumealerts ${db.shortName}`)
+    .join('\n');
+
+  // Construcción del contenido del archivo messages.txt
+  const fileContent = `Hi Team, We are starting Backup migration on:
+
+${fullNamesList}
+
+
+----------------------------------------------------------------------------------
+
+Team, we would like to inform you that the backup migration activity for next DBs:
+
+${shortNamesList}
+
+will begin shortly, as approval from the integrations team is now in place.
+
+----------------------------------------------------------------------------------
+
+${pauseAlertsList}
+
+
+${resumeAlertsList}
+`;
+
+  // Ruta de salida (puedes guardarlo en la raíz del proyecto)
+  const outputPath = path.join(process.cwd(), 'messages.txt');
+  
+  // Guardamos el archivo físicamente
+  fs.writeFileSync(outputPath, fileContent, 'utf-8');
+  console.log(`\n📄 Archivo 'messages.txt' generado exitosamente en: ${outputPath}`);
+}
